@@ -15,20 +15,25 @@ def parse_sa_native(pdf_path):
     for page_layout in extract_pages(pdf_path):
         boxes = [b for b in page_layout if isinstance(b, (LTTextBox, LTTextLine))]
 
-        # 1. Product Names (Column x ≈ 51-60)
+        # 1. Product Names (Wider net: 45 to 75)
         names = []
-        # Widen the X-coordinate net (45 to 75) to catch indented product names
         trade_boxes = [b for b in boxes if 45 < b.x0 < 75]
         for b in trade_boxes:
             txt = b.get_text()
-            split_items = re.split(r'อาหารสัตว[^\n\(]*', txt)
-            for it in split_items:
-                clean = it.strip().replace('\n', ' ')
-                clean = re.sub(r'[\u0E00-\u0E7F\uF700-\uF71F]+', ' ', clean)
-                clean = clean.strip().lstrip('(').rstrip(')')
-                clean = re.sub(r'\s+', ' ', clean)
-                if clean and not any(h in clean for h in ["Trade Name", "No.", "ชื่อทางการค้า", "่อทางการคา"]):
-                    names.append(clean)
+            # Only process boxes that actually contain the product prefix
+            if 'อาหารสัตว' in txt:
+                split_items = re.split(r'อาหารสัตว[^\n\(]*', txt)
+                for it in split_items:
+                    clean = it.strip().replace('\n', ' ')
+                    clean = re.sub(r'[\u0E00-\u0E7F\uF700-\uF71F]+', ' ', clean)
+                    clean = clean.strip().lstrip('(').rstrip(')')
+                    clean = re.sub(r'\s+', ' ', clean)
+
+                    # Explicitly ignore header garbage that might get caught in the net
+                    junk_keywords = ["Trade Name", "No.", "ชื่อทางการค้า", "่อทางการคา", "Date of Departure",
+                                     "effem.com"]
+                    if clean and not any(h in clean for h in junk_keywords):
+                        names.append(clean)
 
         # 2. Weights (Column x ≈ 610-635)
         weights = []
