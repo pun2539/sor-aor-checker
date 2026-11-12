@@ -211,7 +211,7 @@ if sa_file and draft_file:
                     else:
                         mismatched_items.append(f"#{item_no}")
 
-                # --- LINE ITEMS COMPARISON (MOVED TO TOP & VIBRANT) ---
+                # --- 1. LINE ITEMS SUMMARY (TOP) ---
                 st.markdown(
                     "<h2 style='color: #ff4b4b; background-color: #ffe6e6; padding: 15px; border-radius: 10px; border: 2px solid #ff4b4b; text-align: center;'>"
                     "🔍 LINE ITEMS COMPARISON 🔍"
@@ -228,7 +228,29 @@ if sa_file and draft_file:
                         f"❌ **Mismatched Item(s):** {mismatch_str}"
                     )
 
-                # Render Individual Item Boxes
+                # --- 2. GRAND TOTAL VERIFICATION (MOVED DIRECTLY UNDER SUMMARY) ---
+                st.markdown(
+                    "<h2 style='color: #0083b8; background-color: #e0f2fe; padding: 15px; border-radius: 10px; border: 2px solid #0083b8; text-align: center; margin-top: 20px;'>"
+                    "📊 GRAND TOTAL VERIFICATION 📊"
+                    "</h2>", 
+                    unsafe_allow_html=True
+                )
+                
+                try:
+                    sa_nw_float = float(sa_total_nw.replace(',', ''))
+                    draft_nw_float = float(draft_total_nw.replace(',', ''))
+                    total_nw_match = abs(sa_nw_float - draft_nw_float) < 0.001
+                except ValueError:
+                    total_nw_match = False
+
+                if total_nw_match and draft_nw_float > 0:
+                    st.success(f"✅ **Grand Total Net Weight:** MATCH\n* **SA Sum:** `{sa_total_nw} kg`\n* **DRAFT Stated:** `{draft_total_nw} KGM`")
+                else:
+                    st.error(f"❌ **Grand Total Net Weight: MISMATCH**\n* **SA Sum:** `{sa_total_nw} kg`\n* **DRAFT Stated:** `{draft_total_nw} KGM`")
+
+                st.divider()
+
+                # --- 3. DETAILED ITEM BREAKDOWN (BOTTOM) ---
                 for item_no in all_item_keys:
                     st.subheader(f"📦 Item #{item_no}")
 
@@ -271,26 +293,6 @@ if sa_file and draft_file:
                         st.error(f"❌ **FOB Value: MISMATCH**\n* **SA:** `{sa['fob_value']}`\n* **DRAFT:** `{draft['fob_value']}`")
 
                     st.divider()
-
-                # --- GRAND TOTAL VERIFICATION (MOVED TO BOTTOM) ---
-                st.markdown(
-                    "<h2 style='color: #0083b8; background-color: #e0f2fe; padding: 15px; border-radius: 10px; border: 2px solid #0083b8; text-align: center; margin-top: 40px;'>"
-                    "📊 GRAND TOTAL VERIFICATION 📊"
-                    "</h2>", 
-                    unsafe_allow_html=True
-                )
-                
-                try:
-                    sa_nw_float = float(sa_total_nw.replace(',', ''))
-                    draft_nw_float = float(draft_total_nw.replace(',', ''))
-                    total_nw_match = abs(sa_nw_float - draft_nw_float) < 0.001
-                except ValueError:
-                    total_nw_match = False
-
-                if total_nw_match and draft_nw_float > 0:
-                    st.success(f"✅ **Grand Total Net Weight:** MATCH\n* **SA Sum:** `{sa_total_nw} kg`\n* **DRAFT Stated:** `{draft_total_nw} KGM`")
-                else:
-                    st.error(f"❌ **Grand Total Net Weight: MISMATCH**\n* **SA Sum:** `{sa_total_nw} kg`\n* **DRAFT Stated:** `{draft_total_nw} KGM`")
 
             finally:
                 if os.path.exists(sa_path): os.remove(sa_path)
