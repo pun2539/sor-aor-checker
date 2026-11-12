@@ -183,45 +183,52 @@ if sa_file and draft_file:
                     st.write("**Extracted SA Items:**", sa_items)
                     st.write("**Extracted DRAFT Items:**", draft_items)
 
-                st.header("--- GRAND TOTAL VERIFICATION ---")
-                try:
-                    # Ignore commas when calculating float logic
-                    sa_nw_float = float(sa_total_nw.replace(',', ''))
-                    draft_nw_float = float(draft_total_nw.replace(',', ''))
-                    total_nw_match = abs(sa_nw_float - draft_nw_float) < 0.001
-                except ValueError:
-                    total_nw_match = False
-
-                if total_nw_match and draft_nw_float > 0:
-                    st.success(
-                        f"✅ **Grand Total Net Weight:** MATCH\n* **SA:** `{sa_total_nw} kg`\n* **DRAFT:** `{draft_total_nw} KGM`")
-                else:
-                    st.error(
-                        f"❌ **Grand Total Net Weight: MISMATCH**\n* **SA:** `{sa_total_nw} kg`\n* **DRAFT:** `{draft_total_nw} KGM`")
-
-                st.header("--- LINE ITEMS COMPARISON ---")
+                # --- PRE-CALCULATE MATCHES & MISMATCHES ---
                 all_item_keys = sorted(set(list(sa_items.keys()) + list(draft_items.keys())))
-
                 matched_count = 0
+                mismatched_items = []
+
                 for item_no in all_item_keys:
-                    if item_no not in sa_items or item_no not in draft_items: continue
+                    if item_no not in sa_items or item_no not in draft_items: 
+                        mismatched_items.append(f"#{item_no}")
+                        continue
+                    
                     sa = sa_items[item_no]
                     dr = draft_items[item_no]
 
                     name_ok = is_smart_match(sa['product_name'], dr['product_name'])
-                    # Temporarily strip commas to do math check
-                    w_ok = abs(
-                        float(sa['net_weight'].replace(',', '')) - float(dr['net_weight'].replace(',', ''))) < 0.001
-                    fob_ok = abs(
-                        float(sa['fob_value'].replace(',', '')) - float(dr['fob_value'].replace(',', ''))) < 0.01
+                    try:
+                        w_ok = abs(float(sa['net_weight'].replace(',', '')) - float(dr['net_weight'].replace(',', ''))) < 0.001
+                    except ValueError:
+                        w_ok = False
+                    try:
+                        fob_ok = abs(float(sa['fob_value'].replace(',', '')) - float(dr['fob_value'].replace(',', ''))) < 0.01
+                    except ValueError:
+                        fob_ok = False
 
-                    if name_ok and w_ok and fob_ok: matched_count += 1
+                    if name_ok and w_ok and fob_ok: 
+                        matched_count += 1
+                    else:
+                        mismatched_items.append(f"#{item_no}")
+
+                # --- LINE ITEMS COMPARISON (MOVED TO TOP & VIBRANT) ---
+                st.markdown(
+                    "<h2 style='color: #ff4b4b; background-color: #ffe6e6; padding: 15px; border-radius: 10px; border: 2px solid #ff4b4b; text-align: center;'>"
+                    "🔍 LINE ITEMS COMPARISON 🔍"
+                    "</h2>", 
+                    unsafe_allow_html=True
+                )
 
                 if matched_count == len(all_item_keys) and len(all_item_keys) > 0:
                     st.success(f"🎉 **PERFECT VERIFICATION: ALL {matched_count} ITEMS MATCHED 100%!**")
                 else:
-                    st.warning(f"Matched {matched_count} / {len(all_item_keys)} items.")
+                    mismatch_str = ", ".join(mismatched_items)
+                    st.error(
+                        f"⚠️ **Matched {matched_count} / {len(all_item_keys)} items.**\n\n"
+                        f"❌ **Mismatched Item(s):** {mismatch_str}"
+                    )
 
+                # Render Individual Item Boxes
                 for item_no in all_item_keys:
                     st.subheader(f"📦 Item #{item_no}")
 
@@ -235,43 +242,55 @@ if sa_file and draft_file:
                     sa = sa_items[item_no]
                     draft = draft_items[item_no]
 
-                    # 1. Name Check (Shows both strings for debugging)
+                    # 1. Name Check 
                     if is_smart_match(sa['product_name'], draft['product_name']):
-                        st.success(
-                            f"✅ **Product Name:** MATCH\n* **SA:** `{sa['product_name']}`\n* **DRAFT:** `{draft['product_name']}`")
+                        st.success(f"✅ **Product Name:** MATCH\n* **SA:** `{sa['product_name']}`\n* **DRAFT:** `{draft['product_name']}`")
                     else:
-                        st.error(
-                            f"❌ **Product Name: MISMATCH**\n* **SA:** `{sa['product_name']}`\n* **DRAFT:** `{draft['product_name']}`")
+                        st.error(f"❌ **Product Name: MISMATCH**\n* **SA:** `{sa['product_name']}`\n* **DRAFT:** `{draft['product_name']}`")
 
-                    # 2. Weight Check (Shows both strings for debugging)
+                    # 2. Weight Check
                     try:
-                        weight_match = abs(float(sa['net_weight'].replace(',', '')) - float(
-                            draft['net_weight'].replace(',', ''))) < 0.001
+                        weight_match = abs(float(sa['net_weight'].replace(',', '')) - float(draft['net_weight'].replace(',', ''))) < 0.001
                     except ValueError:
                         weight_match = False
 
                     if weight_match:
-                        st.success(
-                            f"✅ **Net Weight:** MATCH\n* **SA:** `{sa['net_weight']} kg`\n* **DRAFT:** `{draft['net_weight']} KGM`")
+                        st.success(f"✅ **Net Weight:** MATCH\n* **SA:** `{sa['net_weight']} kg`\n* **DRAFT:** `{draft['net_weight']} KGM`")
                     else:
-                        st.error(
-                            f"❌ **Net Weight: MISMATCH**\n* **SA:** `{sa['net_weight']} kg`\n* **DRAFT:** `{draft['net_weight']} KGM`")
+                        st.error(f"❌ **Net Weight: MISMATCH**\n* **SA:** `{sa['net_weight']} kg`\n* **DRAFT:** `{draft['net_weight']} KGM`")
 
-                    # 3. FOB Check (Shows both strings for debugging)
+                    # 3. FOB Check
                     try:
-                        val_match = abs(
-                            float(sa['fob_value'].replace(',', '')) - float(draft['fob_value'].replace(',', ''))) < 0.01
+                        val_match = abs(float(sa['fob_value'].replace(',', '')) - float(draft['fob_value'].replace(',', ''))) < 0.01
                     except ValueError:
                         val_match = False
 
                     if val_match:
-                        st.success(
-                            f"✅ **FOB Value:** MATCH\n* **SA:** `{sa['fob_value']}`\n* **DRAFT:** `{draft['fob_value']}`")
+                        st.success(f"✅ **FOB Value:** MATCH\n* **SA:** `{sa['fob_value']}`\n* **DRAFT:** `{draft['fob_value']}`")
                     else:
-                        st.error(
-                            f"❌ **FOB Value: MISMATCH**\n* **SA:** `{sa['fob_value']}`\n* **DRAFT:** `{draft['fob_value']}`")
+                        st.error(f"❌ **FOB Value: MISMATCH**\n* **SA:** `{sa['fob_value']}`\n* **DRAFT:** `{draft['fob_value']}`")
 
                     st.divider()
+
+                # --- GRAND TOTAL VERIFICATION (MOVED TO BOTTOM) ---
+                st.markdown(
+                    "<h2 style='color: #0083b8; background-color: #e0f2fe; padding: 15px; border-radius: 10px; border: 2px solid #0083b8; text-align: center; margin-top: 40px;'>"
+                    "📊 GRAND TOTAL VERIFICATION 📊"
+                    "</h2>", 
+                    unsafe_allow_html=True
+                )
+                
+                try:
+                    sa_nw_float = float(sa_total_nw.replace(',', ''))
+                    draft_nw_float = float(draft_total_nw.replace(',', ''))
+                    total_nw_match = abs(sa_nw_float - draft_nw_float) < 0.001
+                except ValueError:
+                    total_nw_match = False
+
+                if total_nw_match and draft_nw_float > 0:
+                    st.success(f"✅ **Grand Total Net Weight:** MATCH\n* **SA Sum:** `{sa_total_nw} kg`\n* **DRAFT Stated:** `{draft_total_nw} KGM`")
+                else:
+                    st.error(f"❌ **Grand Total Net Weight: MISMATCH**\n* **SA Sum:** `{sa_total_nw} kg`\n* **DRAFT Stated:** `{draft_total_nw} KGM`")
 
             finally:
                 if os.path.exists(sa_path): os.remove(sa_path)
