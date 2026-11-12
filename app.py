@@ -123,7 +123,7 @@ def parse_draft_native(pdf_path):
         for junk in junk_patterns:
             name = re.sub(junk, ' ', name, flags=re.IGNORECASE)
 
-        name = re.sub(r'[/=\-\_!:\|]+', ' ', name)
+        name = re.sub(r'[=\-\_!:\|]+', ' ', name)
         name = re.sub(r'^\s*[^A-Za-z0-9]+', '', name)
         name = re.sub(r'\s+', ' ', name).strip()
         name = name.replace(' &', '&').replace('& ', '&')
