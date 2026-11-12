@@ -17,7 +17,8 @@ def parse_sa_native(pdf_path):
 
         # 1. Product Names (Column x ≈ 51-60)
         names = []
-        trade_boxes = [b for b in boxes if 50 < b.x0 < 60]
+        # Widen the X-coordinate net (45 to 75) to catch indented product names
+        trade_boxes = [b for b in boxes if 45 < b.x0 < 75]
         for b in trade_boxes:
             txt = b.get_text()
             split_items = re.split(r'อาหารสัตว[^\n\(]*', txt)
