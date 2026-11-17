@@ -211,31 +211,26 @@ if sa_file and draft_file:
                     else:
                         mismatched_items.append(f"#{item_no}")
 
-                # --- 1. LINE ITEMS SUMMARY (TOP) ---
-                st.markdown(
-                    "<h2 style='color: #ff4b4b; background-color: #ffe6e6; padding: 15px; border-radius: 10px; border: 2px solid #ff4b4b; text-align: center;'>"
-                    "🔍 LINE ITEMS COMPARISON 🔍"
-                    "</h2>", 
-                    unsafe_allow_html=True
-                )
-
+                # --- 1. LINE ITEMS SUMMARY (UNIFIED CONTAINER) ---
                 if matched_count == len(all_item_keys) and len(all_item_keys) > 0:
-                    st.success(f"🎉 **PERFECT VERIFICATION: ALL {matched_count} ITEMS MATCHED 100%!**")
+                    summary_html = f"""
+                    <div style='background-color: #e6ffe6; border: 2px solid #00cc44; border-radius: 10px; padding: 20px; text-align: center; margin-bottom: 20px;'>
+                        <h2 style='color: #00cc44; margin-top: 0;'>🔍 LINE ITEMS COMPARISON 🔍</h2>
+                        <p style='font-size: 18px; color: #00802b; font-weight: bold; margin-bottom: 0;'>🎉 PERFECT VERIFICATION: ALL {matched_count} ITEMS MATCHED 100%!</p>
+                    </div>
+                    """
                 else:
                     mismatch_str = ", ".join(mismatched_items)
-                    st.error(
-                        f"⚠️ **Matched {matched_count} / {len(all_item_keys)} items.**\n\n"
-                        f"❌ **Mismatched Item(s):** {mismatch_str}"
-                    )
+                    summary_html = f"""
+                    <div style='background-color: #ffe6e6; border: 2px solid #ff4b4b; border-radius: 10px; padding: 20px; text-align: center; margin-bottom: 20px;'>
+                        <h2 style='color: #ff4b4b; margin-top: 0;'>🔍 LINE ITEMS COMPARISON 🔍</h2>
+                        <p style='font-size: 18px; color: #cc0000; font-weight: bold;'>⚠️ Matched {matched_count} / {len(all_item_keys)} items.</p>
+                        <p style='font-size: 16px; color: #cc0000; margin-bottom: 0;'>❌ <b>Mismatched Item(s):</b> {mismatch_str}</p>
+                    </div>
+                    """
+                st.markdown(summary_html, unsafe_allow_html=True)
 
-                # --- 2. GRAND TOTAL VERIFICATION (MOVED DIRECTLY UNDER SUMMARY) ---
-                st.markdown(
-                    "<h2 style='color: #0083b8; background-color: #e0f2fe; padding: 15px; border-radius: 10px; border: 2px solid #0083b8; text-align: center; margin-top: 20px;'>"
-                    "📊 GRAND TOTAL VERIFICATION 📊"
-                    "</h2>", 
-                    unsafe_allow_html=True
-                )
-                
+                # --- 2. GRAND TOTAL VERIFICATION (UNIFIED CONTAINER) ---
                 try:
                     sa_nw_float = float(sa_total_nw.replace(',', ''))
                     draft_nw_float = float(draft_total_nw.replace(',', ''))
@@ -244,9 +239,22 @@ if sa_file and draft_file:
                     total_nw_match = False
 
                 if total_nw_match and draft_nw_float > 0:
-                    st.success(f"✅ **Grand Total Net Weight:** MATCH\n* **SA Sum:** `{sa_total_nw} kg`\n* **DRAFT Stated:** `{draft_total_nw} KGM`")
+                    total_html = f"""
+                    <div style='background-color: #e0f2fe; border: 2px solid #0083b8; border-radius: 10px; padding: 20px; text-align: center; margin-bottom: 30px;'>
+                        <h2 style='color: #0083b8; margin-top: 0;'>📊 GRAND TOTAL VERIFICATION 📊</h2>
+                        <p style='font-size: 18px; color: #005980; font-weight: bold;'>✅ Grand Total Net Weight: MATCH</p>
+                        <p style='font-size: 16px; color: #005980; margin-bottom: 0;'><b>SA Sum:</b> {sa_total_nw} kg &nbsp;&nbsp;|&nbsp;&nbsp; <b>DRAFT Stated:</b> {draft_total_nw} KGM</p>
+                    </div>
+                    """
                 else:
-                    st.error(f"❌ **Grand Total Net Weight: MISMATCH**\n* **SA Sum:** `{sa_total_nw} kg`\n* **DRAFT Stated:** `{draft_total_nw} KGM`")
+                    total_html = f"""
+                    <div style='background-color: #ffe6e6; border: 2px solid #ff4b4b; border-radius: 10px; padding: 20px; text-align: center; margin-bottom: 30px;'>
+                        <h2 style='color: #ff4b4b; margin-top: 0;'>📊 GRAND TOTAL VERIFICATION 📊</h2>
+                        <p style='font-size: 18px; color: #cc0000; font-weight: bold;'>❌ Grand Total Net Weight: MISMATCH</p>
+                        <p style='font-size: 16px; color: #cc0000; margin-bottom: 0;'><b>SA Sum:</b> {sa_total_nw} kg &nbsp;&nbsp;|&nbsp;&nbsp; <b>DRAFT Stated:</b> {draft_total_nw} KGM</p>
+                    </div>
+                    """
+                st.markdown(total_html, unsafe_allow_html=True)
 
                 st.divider()
 
