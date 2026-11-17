@@ -145,11 +145,15 @@ def parse_draft_native(pdf_path):
 
 
 def is_smart_match(str1, str2):
-    """Enforces exact character match including case/symbols, removing ONLY spaces."""
+    """Enforces strict 100% exact character match, ignoring ONLY spaces."""
     s1 = re.sub(r'\s+', '', str1)
     s2 = re.sub(r'\s+', '', str2)
-    if not s1 or not s2: return False
-    return s1 == s2 or s1 in s2 or s2 in s1
+    
+    if not s1 or not s2: 
+        return False
+        
+    # STRICT EQUALITY ONLY. Removed the lenient "in" substring match.
+    return s1 == s2
 
 
 # --- STREAMLIT UI ---
