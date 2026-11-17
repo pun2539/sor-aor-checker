@@ -26,7 +26,11 @@ def parse_sa_native(pdf_path):
                 for it in split_items:
                     clean = it.strip().replace('\n', ' ')
                     clean = re.sub(r'[\u0E00-\u0E7F\uF700-\uF71F]+', ' ', clean)
-                    clean = clean.strip().lstrip('(').rstrip(')')
+                    clean = clean.strip()
+                    if clean.startswith('('):
+                        clean = clean[1:]
+                    if clean.endswith(')'):
+                        clean = clean[:-1]
                     clean = re.sub(r'\s+', ' ', clean)
 
                     # Explicitly ignore header garbage that might get caught in the net
