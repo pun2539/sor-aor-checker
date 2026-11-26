@@ -192,6 +192,104 @@ def is_smart_match(str1, str2):
     # STRICT EQUALITY ONLY. Removed the lenient "in" substring match.
     return s1 == s2
 
+def log_results_to_gsheet(invoice_results):
+    """Appends invoice summaries to 'Logs' and item-level details to 'Item_Logs'."""
+    try:
+        scopes = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive"
+        ]
+        creds = Credentials.from_service_account_info(
+            st.secrets["gcp_service_account"],
+            scopes=scopes
+        )
+        client = gspread.authorize(creds)
+        spreadsheet = client.open_by_url(st.secrets["sheets"]["spreadsheet_url"])
+
+        summary_sheet = spreadsheet.worksheet("Logs")
+        item_sheet = spreadsheet.worksheet("Item_Logs")
+
+        # Thailand Time (UTC+7)
+        bkk_tz = timezone(timedelta(hours=7))
+        timestamp = datetime.now(bkk_tz).strftime("%Y-%m-%d %H:%M:%S")
+
+        summary_rows = []
+        item_rows = []
+
+        for inv_num, data in invoice_results.items():
+            # --- 1. Build Summary Row ---
+            clean_mismatches = [re.sub(r'<[^>]+>', '', item) for item in data['mismatched_items']]
+            mismatch_text = ", ".join(clean_mismatches) if clean_mismatches else "None"
+
+            summary_rows.append([
+                timestamp,
+                str(inv_num),
+                "PASS" if data['is_perfect'] else "FAIL",
+                f"{data['matched_count']} / {len(data['all_item_keys'])}",
+                mismatch_text,
+                data['sa_total_nw'],
+                data['draft_total_nw'],
+                "MATCH" if (data['total_nw_match'] and data['draft_nw_float'] > 0) else "MISMATCH",
+                data['sa_total_fob'],
+                data['draft_total_fob'],
+                f"{data['fob_diff']:.2f}",
+                "MATCH" if data['total_fob_match'] else "MISMATCH"
+            ])
+
+            # --- 2. Build Line-Item Rows ---
+            sa_items = data['sa_items']
+            draft_items = data['draft_items']
+
+            for item_no in data['all_item_keys']:
+                sa = sa_items.get(item_no)
+                dr = draft_items.get(item_no)
+
+                sa_name = sa['product_name'] if sa else "MISSING"
+                dr_name = dr['product_name'] if dr else "MISSING"
+                sa_nw = sa['net_weight'] if sa else "MISSING"
+                dr_nw = dr['net_weight'] if dr else "MISSING"
+                sa_fob = sa['fob_value'] if sa else "MISSING"
+                dr_fob = dr['fob_value'] if dr else "MISSING"
+
+                if sa and dr:
+                    name_ok = is_smart_match(sa_name, dr_name)
+                    try:
+                        nw_ok = abs(float(sa_nw.replace(',', '')) - float(dr_nw.replace(',', ''))) < 0.001
+                    except ValueError:
+                        nw_ok = False
+                    try:
+                        fob_ok = abs(float(sa_fob.replace(',', '')) - float(dr_fob.replace(',', ''))) < 0.01
+                    except ValueError:
+                        fob_ok = False
+                else:
+                    name_ok = nw_ok = fob_ok = False
+
+                item_ok = name_ok and nw_ok and fob_ok
+
+                item_rows.append([
+                    timestamp,
+                    str(inv_num),
+                    item_no,
+                    "MATCH" if item_ok else "MISMATCH",
+                    sa_name,
+                    dr_name,
+                    "MATCH" if name_ok else "MISMATCH",
+                    sa_nw,
+                    dr_nw,
+                    "MATCH" if nw_ok else "MISMATCH",
+                    sa_fob,
+                    dr_fob,
+                    "MATCH" if fob_ok else "MISMATCH"
+                ])
+
+        if summary_rows:
+            summary_sheet.append_rows(summary_rows, value_input_option="USER_ENTERED")
+        if item_rows:
+            item_sheet.append_rows(item_rows, value_input_option="USER_ENTERED")
+
+        return True, None
+    except Exception as e:
+        return False, str(e)
 
 # --- STREAMLIT UI ---
 st.set_page_config(layout="wide", page_title="Sor Aor vs Declaration Checker")
@@ -359,6 +457,13 @@ if st.session_state.file_queue:
                     finally:
                         if os.path.exists(sa_path): os.remove(sa_path)
                         if os.path.exists(draft_path): os.remove(draft_path)
+
+            # --- LOG TO GOOGLE SHEETS ---
+            log_ok, log_err = log_results_to_gsheet(invoice_results)
+            if log_ok:
+                st.toast("✅ Audit log saved to Google Sheets!", icon="📊")
+            else:
+                st.warning(f"⚠️ Verification completed, but failed to save log to Google Sheets: {log_err}")
 
             # --- PHASE 2: GENERATE THE UI ---
 
