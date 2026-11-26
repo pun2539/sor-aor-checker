@@ -1,3 +1,5 @@
 streamlit
 pdfplumber
 pdfminer.six
+gspread
+google-auth
