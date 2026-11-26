@@ -9,24 +9,29 @@ from pdfminer.layout import LTTextBox, LTTextLine
 
 def parse_sa_native(pdf_path):
     """Natively extracts SA line items using vector layout coordinates without OCR."""
-    sa_items = {}
-    item_counter = 1
+    all_names = []
+    all_weights = []
+    all_fobs = []
     sa_extracted_total_nw = "0.000"
     sa_extracted_total_fob = "0.00"
 
-    for p_idx, page_layout in enumerate(extract_pages(pdf_path)):
+    junk_keywords = [
+        "Trade Name", "No.", "ชื่อทางการค้า", "่อทางการคา",
+        "Date of Departure", "effem.com"
+    ]
 
+    for p_idx, page_layout in enumerate(extract_pages(pdf_path)):
         boxes = [b for b in page_layout if isinstance(b, (LTTextBox, LTTextLine))]
 
         # 1. Product Names (Wider net: 45 to 75)
-        names = []
         trade_boxes = [b for b in boxes if 45 < b.x0 < 75]
+        trade_boxes.sort(key=lambda b: -b.y0)  # Top-to-bottom order
+
         for b in trade_boxes:
             txt = b.get_text()
-            # Only process boxes that actually contain the product prefix
             if 'อาหารสัตว' in txt:
                 split_items = re.split(r'อาหารสัตว[^\n\(]*', txt)
-                for it in split_items:
+                for idx, it in enumerate(split_items):
                     clean = it.strip().replace('\n', ' ')
                     clean = re.sub(r'[\u0E00-\u0E7F\uF700-\uF71F]+', ' ', clean)
                     clean = clean.strip()
@@ -36,73 +41,68 @@ def parse_sa_native(pdf_path):
                         clean = clean[:-1]
                     clean = re.sub(r'\s+', ' ', clean)
 
-                    # Explicitly ignore header garbage that might get caught in the net
-                    junk_keywords = ["Trade Name", "No.", "ชื่อทางการค้า", "่อทางการคา", "Date of Departure",
-                                     "effem.com"]
                     if clean and not any(h in clean for h in junk_keywords):
-                        names.append(clean)
+                        # If idx == 0, this text appeared BEFORE the first 'อาหารสัตว'
+                        # on the page—meaning it's a spillover from the previous item.
+                        if idx == 0 and len(all_names) > 0:
+                            all_names[-1] = (all_names[-1] + " " + clean).strip()
+                        else:
+                            all_names.append(clean)
 
         # 2. Weights (Column x ≈ 610-635)
-        weights = []
+        page_weights = []
         for b in boxes:
             txt = b.get_text().strip()
             if ("กิโลกรัม" in txt or "KGM" in txt) and "รวม" not in txt:
                 m = re.findall(r'([\d,]+\.\d{3})\s*(?:กิโลกรัม|กิโล|KGM)', txt)
                 if m:
                     for w in m:
-                        # KEPT COMMA HERE
-                        weights.append((b.y0, w.strip()))
-        weights.sort(key=lambda x: -x[0])
+                        page_weights.append((b.y0, w.strip()))
+        page_weights.sort(key=lambda x: -x[0])
+        all_weights.extend([w[1] for w in page_weights])
 
         # --- EXTRACT SA GRAND TOTALS DIRECTLY ---
-        # 1. Find the exact Y-coordinate of the word "รวม"
         ruam_y0 = None
         for b in boxes:
             if b.get_text().strip() == "รวม":
                 ruam_y0 = b.y0
                 break
 
-        # 2. If we found "รวม", scan that exact horizontal line for the numbers
         if ruam_y0 is not None:
             for b in boxes:
                 if abs(b.y0 - ruam_y0) < 5:
                     txt = b.get_text().strip()
-
-                    # Grab Total Net Weight
                     if "กิโลกรัม" in txt or "KGM" in txt:
                         m_nw = re.search(r'([\d,]+\.\d{3})', txt)
                         if m_nw:
                             sa_extracted_total_nw = m_nw.group(1)
-
-                        # If the FOB is smooshed into the same text box right after the weight (e.g. "16,958.880 กิโลกรัม 1,647,789.46")
                         m_fob = re.search(r'([\d,]+\.\d{2})$', txt)
                         if m_fob:
                             sa_extracted_total_fob = m_fob.group(1)
-
-                    # Otherwise, grab Total FOB if it's sitting in its own separate text box
                     elif re.fullmatch(r'[\d,]+\.\d{2}', txt):
                         sa_extracted_total_fob = txt
 
         # 3. FOB Values (Column x ≈ 695-720)
-        fobs = []
+        page_fobs = []
         for b in boxes:
             if 695 <= b.x0 <= 720:
                 txt = b.get_text().strip()
                 matches = re.findall(r'\b[\d,]+\.\d{2}\b', txt)
                 if matches and "รวม" not in txt:
-                    # KEPT COMMA HERE
                     val = matches[-1].strip()
                     if val != "0.00" and not val.startswith("2309"):
-                        fobs.append((b.y0, val))
-        fobs.sort(key=lambda x: -x[0])
+                        page_fobs.append((b.y0, val))
+        page_fobs.sort(key=lambda x: -x[0])
+        all_fobs.extend([f[1] for f in page_fobs])
 
-        # Construct rows mapping the found elements top-to-bottom
-        for i in range(len(names)):
-            n = names[i]
-            w = weights[i][1] if i < len(weights) else "0.000"
-            f = fobs[i][1] if i < len(fobs) else "0.00"
-            sa_items[item_counter] = {'product_name': n, 'net_weight': w, 'fob_value': f}
-            item_counter += 1
+    # Construct final dictionary across all pages
+    sa_items = {}
+    for i in range(len(all_names)):
+        sa_items[i + 1] = {
+            'product_name': all_names[i],
+            'net_weight': all_weights[i] if i < len(all_weights) else "0.000",
+            'fob_value': all_fobs[i] if i < len(all_fobs) else "0.00"
+        }
 
     return sa_items, sa_extracted_total_nw, sa_extracted_total_fob
 
